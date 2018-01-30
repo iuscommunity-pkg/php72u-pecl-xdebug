@@ -1,3 +1,5 @@
+# IUS spec file for php71u-pecl-xdebug, forked from:
+#
 # Fedora spec file for php-pecl-xdebug
 #
 # Copyright (c) 2010-2018 Remi Collet
@@ -13,29 +15,18 @@
 %undefine _strict_symbol_defs_build
 
 %global pecl_name  xdebug
-%global with_zts   0%{!?_without_zts:%{?__ztsphp:1}}
 # XDebug should be loaded after opcache
 %global ini_name   15-%{pecl_name}.ini
-%global with_tests 0%{!?_without_tests:1}
+%global php        php72u
 
-%global gh_commit  61690fbc6e7991f12c6a36bc72db9e0a145406e0
-%global gh_short   %(c=%{gh_commit}; echo ${c:0:7})
-#global gh_date    20171018
-#global prever     RC2
+%bcond_without tests
+%bcond_without zts
 
-Name:           php-pecl-xdebug
+Name:           %{php}-pecl-%{pecl_name}
 Summary:        PECL package for debugging PHP scripts
 Version:        2.6.0
-%if 0%{?prever:1}
-Release:        0.5.%{prever}%{?dist}
-%else
-%if 0%{?gh_date:1}
-Release:        0.2.%{gh_date}.%{gh_short}%{?dist}
-%else
-Release:        1%{?dist}
-%endif
-%endif
-Source0:        https://github.com/%{pecl_name}/%{pecl_name}/archive/%{gh_commit}/%{pecl_name}-%{version}%{?prever}-%{gh_short}.tar.gz
+Release:        1.ius%{?dist}
+Source0:        https://pecl.php.net/get/%{pecl_name}-%{version}.tgz
 
 # The Xdebug License, version 1.01
 # (Based on "The PHP License", version 3.0)
@@ -43,19 +34,45 @@ License:        PHP
 Group:          Development/Languages
 URL:            http://xdebug.org/
 
-BuildRequires:  php-pear  > 1.9.1
-BuildRequires:  php-devel > 7
-BuildRequires:  php-simplexml
+BuildRequires:  %{php}-cli
+BuildRequires:  %{php}-common
+BuildRequires:  %{php}-devel
+BuildRequires:  %{php}-process
+BuildRequires:  %{php}-xml
+BuildRequires:  pecl >= 1.10.0
+
+BuildRequires:  %{php}-simplexml
 BuildRequires:  libedit-devel
 BuildRequires:  libtool
 
 Requires:       php(zend-abi) = %{php_zend_api}
 Requires:       php(api) = %{php_core_api}
 
+Requires(post): pecl >= 1.10.0
+Requires(postun): pecl >= 1.10.0
+
+# provide the stock name
+Provides:       php-pecl-%{pecl_name} = %{version}
+Provides:       php-pecl-%{pecl_name}%{?_isa} = %{version}
+
+# provide the stock and IUS names without pecl
 Provides:       php-%{pecl_name} = %{version}
 Provides:       php-%{pecl_name}%{?_isa} = %{version}
+Provides:       %{php}-%{pecl_name} = %{version}
+Provides:       %{php}-%{pecl_name}%{?_isa} = %{version}
+
+# provide the stock and IUS names in pecl() format
 Provides:       php-pecl(Xdebug) = %{version}
 Provides:       php-pecl(Xdebug)%{?_isa} = %{version}
+Provides:       %{php}-pecl(Xdebug) = %{version}
+Provides:       %{php}-pecl(Xdebug)%{?_isa} = %{version}
+
+# conflict with the stock name
+Conflicts:      php-pecl-%{pecl_name} < %{version}
+
+%{?filter_provides_in: %filter_provides_in %{php_extdir}/.*\.so$}
+%{?filter_provides_in: %filter_provides_in %{php_ztsextdir}/.*\.so$}
+%{?filter_setup}
 
 
 %description
@@ -79,33 +96,18 @@ Xdebug also provides:
 
 %prep
 %setup -qc
-mv %{pecl_name}-%{gh_commit} NTS
-
-%if 0%{?gh_date:1}
-%{__php} -r '
-  $pkg = simplexml_load_file("NTS/package.xml");
-  $pkg->date = substr("%{gh_date}",0,4)."-".substr("%{gh_date}",4,2)."-".substr("%{gh_date}",6,2);
-  $pkg->version->release = "%{version}dev";
-  $pkg->stability->release = "devel";
-  $pkg->asXML("package.xml");
-'
-%else
-mv NTS/package.xml .
-%endif
+mv %{pecl_name}-%{version} NTS
 
 sed -e '/LICENSE/s/role="doc"/role="src"/' -i package.xml
 
-cd NTS
 # Check extension version
-ver=$(sed -n '/XDEBUG_VERSION/{s/.* "//;s/".*$//;p}' php_xdebug.h)
-if test "$ver" != "%{version}%{?prever}%{?gh_date:-dev}"; then
-   : Error: Upstream XDEBUG_VERSION version is ${ver}, expecting %{version}%{?prever}%{?gh_date:-dev}.
+ver=$(sed -n '/XDEBUG_VERSION/{s/.* "//;s/".*$//;p}' NTS/php_xdebug.h)
+if test "$ver" != "%{version}"; then
+   : Error: Upstream XDEBUG_VERSION version is ${ver}, expecting %{version}.
    exit 1
 fi
-cd ..
 
-%if %{with_zts}
-# Duplicate source tree for NTS / ZTS build
+%if %{with zts}
 cp -pr NTS ZTS
 %endif
 
@@ -118,49 +120,48 @@ sed -e '1d' NTS/%{pecl_name}.ini >>%{ini_name}
 
 
 %build
-cd NTS
+pushd NTS
 %{_bindir}/phpize
 %configure \
     --enable-xdebug  \
     --with-php-config=%{_bindir}/php-config
-make %{?_smp_mflags}
+%make_build
 
 # Build debugclient
 pushd debugclient
 # buildconf required for aarch64 support
 ./buildconf
 %configure --with-libedit
-make %{?_smp_mflags}
+%make_build
+popd
 popd
 
-%if %{with_zts}
-cd ../ZTS
+%if %{with zts}
+pushd ZTS
 %{_bindir}/zts-phpize
 %configure \
     --enable-xdebug  \
     --with-php-config=%{_bindir}/zts-php-config
-make %{?_smp_mflags}
+%make_build
+popd
 %endif
 
 
 %install
 # install NTS extension
 make -C NTS install INSTALL_ROOT=%{buildroot}
+install -Dpm 644 %{ini_name} %{buildroot}%{php_inidir}/%{ini_name}
 
 # install debugclient
 install -Dpm 755 NTS/debugclient/debugclient \
         %{buildroot}%{_bindir}/debugclient
 
 # install package registration file
-install -Dpm 644 package.xml %{buildroot}%{pecl_xmldir}/%{name}.xml
+install -Dpm 644 package.xml %{buildroot}%{pecl_xmldir}/%{pecl_name}.xml
 
-# install config file
-install -Dpm 644 %{ini_name} %{buildroot}%{php_inidir}/%{ini_name}
-
-%if %{with_zts}
+%if %{with zts}
 # Install ZTS extension
 make -C ZTS install INSTALL_ROOT=%{buildroot}
-
 install -Dpm 644 %{ini_name} %{buildroot}%{php_ztsinidir}/%{ini_name}
 %endif
 
@@ -187,14 +188,14 @@ done
     --define zend_extension=%{buildroot}%{php_extdir}/%{pecl_name}.so \
     --modules | grep Xdebug
 
-%if %{with_zts}
+%if %{with zts}
 %{_bindir}/zts-php \
     --no-php-ini \
     --define zend_extension=%{buildroot}%{php_ztsextdir}/%{pecl_name}.so \
     --modules | grep Xdebug
 %endif
 
-%if %{with_tests}
+%if %{with tests}
 cd NTS
 : Upstream test suite NTS extension
 # bug00886 is marked as slow as it uses a lot of disk space
@@ -209,22 +210,35 @@ REPORT_EXIT_STATUS=1 \
 %endif
 
 
+%post
+%{pecl_install} %{pecl_xmldir}/%{pecl_name}.xml >/dev/null || :
+
+
+%postun
+if [ $1 -eq 0 ]; then
+    %{pecl_uninstall} %{pecl_name} >/dev/null || :
+fi
+
+
 %files
 %license NTS/LICENSE
 %doc %{pecl_docdir}/%{pecl_name}
 %{_bindir}/debugclient
-%{pecl_xmldir}/%{name}.xml
+%{pecl_xmldir}/%{pecl_name}.xml
 
 %config(noreplace) %{php_inidir}/%{ini_name}
 %{php_extdir}/%{pecl_name}.so
 
-%if %{with_zts}
+%if %{with zts}
 %config(noreplace) %{php_ztsinidir}/%{ini_name}
 %{php_ztsextdir}/%{pecl_name}.so
 %endif
 
 
 %changelog
+* Tue Jan 30 2018 Carl George <carl@george.computer> - 2.6.0-1.ius
+- Port from Fedora to IUS
+
 * Tue Jan 30 2018 Remi Collet <remi@remirepo.net> - 2.6.0-1
 - update to 2.6.0 (stable)
 
