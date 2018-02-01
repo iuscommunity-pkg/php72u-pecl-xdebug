@@ -11,9 +11,6 @@
 # Please, preserve the changelog entries
 #
 
-# we don't want -z defs linker flag
-%undefine _strict_symbol_defs_build
-
 %global pecl_name  xdebug
 # XDebug should be loaded after opcache
 %global ini_name   15-%{pecl_name}.ini
@@ -32,7 +29,7 @@ Source0:        https://pecl.php.net/get/%{pecl_name}-%{version}.tgz
 # (Based on "The PHP License", version 3.0)
 License:        PHP
 Group:          Development/Languages
-URL:            http://xdebug.org/
+URL:            https://xdebug.org
 
 BuildRequires:  %{php}-cli
 BuildRequires:  %{php}-common
@@ -103,7 +100,7 @@ sed -e '/LICENSE/s/role="doc"/role="src"/' -i package.xml
 # Check extension version
 ver=$(sed -n '/XDEBUG_VERSION/{s/.* "//;s/".*$//;p}' NTS/php_xdebug.h)
 if test "$ver" != "%{version}"; then
-   : Error: Upstream XDEBUG_VERSION version is ${ver}, expecting %{version}.
+   : Error: Upstream version is ${ver}, expecting %{version}.
    exit 1
 fi
 
@@ -116,7 +113,7 @@ cat << 'EOF' | tee %{ini_name}
 zend_extension=%{pecl_name}.so
 
 EOF
-sed -e '1d' NTS/%{pecl_name}.ini >>%{ini_name}
+sed -e '1d' NTS/%{pecl_name}.ini >> %{ini_name}
 
 
 %build
@@ -167,9 +164,7 @@ install -Dpm 644 %{ini_name} %{buildroot}%{php_ztsinidir}/%{ini_name}
 
 # Documentation
 for i in $(grep 'role="doc"' package.xml | sed -e 's/^.*name="//;s/".*$//')
-do
-  [ -f NTS/contrib/$i ] && j=contrib/$i || j=$i
-  install -Dpm 644 NTS/$j %{buildroot}%{pecl_docdir}/%{pecl_name}/$j
+do install -D -p -m 644 NTS/$i %{buildroot}%{pecl_docdir}/%{pecl_name}/$i
 done
 
 
@@ -183,13 +178,13 @@ for mod in simplexml; do
 done
 
 # only check if build extension can be loaded
-%{_bindir}/php \
+%{__php} \
     --no-php-ini \
     --define zend_extension=%{buildroot}%{php_extdir}/%{pecl_name}.so \
     --modules | grep Xdebug
 
 %if %{with zts}
-%{_bindir}/zts-php \
+%{__ztsphp} \
     --no-php-ini \
     --define zend_extension=%{buildroot}%{php_ztsextdir}/%{pecl_name}.so \
     --modules | grep Xdebug
@@ -200,7 +195,7 @@ cd NTS
 : Upstream test suite NTS extension
 # bug00886 is marked as slow as it uses a lot of disk space
 SKIP_SLOW_TESTS=1 \
-TEST_PHP_EXECUTABLE=%{_bindir}/php \
+TEST_PHP_EXECUTABLE=%{__php} \
 TEST_PHP_ARGS="-n $modules -d zend_extension=%{buildroot}%{php_extdir}/%{pecl_name}.so -d xdebug.auto_trace=0" \
 NO_INTERACTION=1 \
 REPORT_EXIT_STATUS=1 \
