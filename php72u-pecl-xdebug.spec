@@ -1,4 +1,4 @@
-# IUS spec file for php71u-pecl-xdebug, forked from:
+# IUS spec file for php72u-pecl-xdebug, forked from:
 #
 # Fedora spec file for php-pecl-xdebug
 #
@@ -21,34 +21,24 @@
 
 Name:           %{php}-pecl-%{pecl_name}
 Summary:        PECL package for debugging PHP scripts
-Version:        2.6.0
-Release:        2.ius%{?dist}
+Version:        2.7.2
+Release:        1%{?dist}
 Source0:        https://pecl.php.net/get/%{pecl_name}-%{version}.tgz
 
 # The Xdebug License, version 1.01
 # (Based on "The PHP License", version 3.0)
 License:        PHP
-Group:          Development/Languages
 URL:            https://xdebug.org
 
+# build require  pear1's dependencies to avoid mismatched php stacks
+BuildRequires:  pear1 %{php}-cli %{php}-common %{php}-xml
 BuildRequires:  %{php}-devel
 BuildRequires:  %{php}-simplexml
 BuildRequires:  libedit-devel
 BuildRequires:  libtool
 
-BuildRequires:  pear1u
-# explicitly require pear dependencies to avoid conflicts
-BuildRequires:  %{php}-cli
-BuildRequires:  %{php}-common
-BuildRequires:  %{php}-process
-BuildRequires:  %{php}-xml
-
 Requires:       php(zend-abi) = %{php_zend_api}
 Requires:       php(api) = %{php_core_api}
-
-# provide the stock name
-Provides:       php-pecl-%{pecl_name} = %{version}
-Provides:       php-pecl-%{pecl_name}%{?_isa} = %{version}
 
 # provide the stock and IUS names without pecl
 Provides:       php-%{pecl_name} = %{version}
@@ -62,12 +52,10 @@ Provides:       php-pecl(Xdebug)%{?_isa} = %{version}
 Provides:       %{php}-pecl(Xdebug) = %{version}
 Provides:       %{php}-pecl(Xdebug)%{?_isa} = %{version}
 
-# conflict with the stock name
-Conflicts:      php-pecl-%{pecl_name} < %{version}
-
-%{?filter_provides_in: %filter_provides_in %{php_extdir}/.*\.so$}
-%{?filter_provides_in: %filter_provides_in %{php_ztsextdir}/.*\.so$}
-%{?filter_setup}
+# safe replacement
+Provides:       php-pecl-%{pecl_name} = %{version}-%{release}
+Provides:       php-pecl-%{pecl_name}%{?_isa} = %{version}-%{release}
+Conflicts:      php-pecl-%{pecl_name} < %{version}-%{release}
 
 
 %description
@@ -203,7 +191,7 @@ REPORT_EXIT_STATUS=1 \
 %endif
 
 
-%triggerin -- pear1u
+%triggerin -- pear1
 if [ -x %{__pecl} ]; then
     %{pecl_install} %{pecl_xmldir}/%{pecl_name}.xml >/dev/null || :
 fi
@@ -237,6 +225,9 @@ fi
 
 
 %changelog
+* Tue May 28 2019 Carl George <carl@george.computer> - 2.7.2-2
+- Latest upstream
+
 * Thu Feb 01 2018 Carl George <carl@george.computer> - 2.6.0-2.ius
 - Remove pear requirement and update scriptlets (adapted from remirepo)
 
